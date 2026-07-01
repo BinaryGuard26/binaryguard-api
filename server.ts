@@ -393,6 +393,39 @@ app.post("/api/otp/verify", async (req: Request, res: Response) => {
   }
 });
 
+
+app.get("/api/test-db", async (_req: Request, res: Response) => {
+  try {
+    const { data, error } = await supabase
+      .from("tenants")
+      .select("id, name, slug, status, created_at")
+      .limit(5);
+
+    if (error) {
+      return res.status(500).json({
+        ok: false,
+        success: false,
+        message: "Supabase database connection failed.",
+        error: error.message,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      success: true,
+      message: "Supabase database connection successful.",
+      rows: data,
+    });
+  } catch (error) {
+    console.error("Database test error:", error);
+    return res.status(500).json({
+      ok: false,
+      success: false,
+      message: "Unexpected database test error.",
+    });
+  }
+});
+
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ ok: false, message: "Endpoint not found." });
 });
