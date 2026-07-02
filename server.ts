@@ -47,23 +47,61 @@ type OtpRow = {
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
 const otpExpiryMinutes = Number(process.env.OTP_EXPIRY_MINUTES || 5);
-const maxAttempts = Number(process.env.OTP_MAX_ATTEMPTS || 3);
 
-const allowedOrigins = String(process.env.FRONTEND_ORIGIN || "https://portal.binaryguard.ca")
+
+const configuredOrigins = String(
+  process.env.FRONTEND_ORIGIN ||
+    "https://portal.binaryguard.ca,https://binaryguard-portal-d9ew2.ondigitalocean.app",
+)
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-app.use(helmet());
+function isAllowedOrigin(origin?: string): boolean {
+  if (!origin) return true;
+
+  try {
+    const url = new URL(origin);
+
+    if (configuredOrigins.includes(origin)) return true;
+    if (url.hostname === "portal.binaryguard.ca") return true;
+    if (url.hostname.endsWith(".binaryguard.ca")) return true;
+    if (url.hostname.endsWith(".ondigitalocean.app")) return true;
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }),
+);
+
 app.use(express.json({ limit: "100kb" }));
-app.use(cors({
+
+const corsMiddleware = cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error(`CORS blocked origin: ${origin}`));
+    if (isAllowedOrigin(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    console.error("CORS blocked origin:", origin);
+    callback(null, false);
   },
+  credentials: false,
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
-}));
+  optionsSuccessStatus: 204,
+});
+
+app.use(corsMiddleware);
+app.options("*", corsMiddleware);
+
+const maxAttempts = Number(process.env.OTP_MAX_ATTEMPTS || 3);
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -214,6 +252,17 @@ async function sendOtpEmail(email: string, code: string, purpose: OtpPurpose) {
     `,
   });
 }
+
+
+app.get("/api/debug-cors", (req: Request, res: Response) => {
+  res.json({
+    ok: true,
+    origin: req.headers.origin || null,
+    allowed: isAllowedOrigin(req.headers.origin),
+    configuredOrigins,
+    time: new Date().toISOString(),
+  });
+});
 
 app.get("/health", (_req: Request, res: Response) => {
   res.json({ ok: true, success: true, service: "binaryguard-api", time: nowIso() });
@@ -390,39 +439,6 @@ app.post("/api/otp/verify", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("OTP verify error:", error);
     return res.status(500).json({ ok: false, message: "Unable to verify OTP." });
-  }
-});
-
-
-app.get("/api/test-db", async (_req: Request, res: Response) => {
-  try {
-    const { data, error } = await supabase
-      .from("tenants")
-      .select("id, name, slug, status, created_at")
-      .limit(5);
-
-    if (error) {
-      return res.status(500).json({
-        ok: false,
-        success: false,
-        message: "Supabase database connection failed.",
-        error: error.message,
-      });
-    }
-
-    return res.json({
-      ok: true,
-      success: true,
-      message: "Supabase database connection successful.",
-      rows: data,
-    });
-  } catch (error) {
-    console.error("Database test error:", error);
-    return res.status(500).json({
-      ok: false,
-      success: false,
-      message: "Unexpected database test error.",
-    });
   }
 });
 
