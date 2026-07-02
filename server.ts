@@ -235,24 +235,60 @@ async function findTenantByEmail(email: string): Promise<{ tenantId: string } | 
 }
 
 async function sendOtpEmail(email: string, code: string, purpose: OtpPurpose) {
-  const purposeLabel = purpose.replace("_", " ");
+  const portalBaseUrl =
+    process.env.PORTAL_URL ||
+    process.env.FRONTEND_ORIGIN?.split(",")[0] ||
+    "https://portal.binaryguard.ca";
+
+  const portalUrl = new URL(portalBaseUrl);
+  portalUrl.searchParams.set("otp_email", email);
+  portalUrl.searchParams.set("purpose", purpose);
+
+  const purposeLabel =
+    purpose === "registration" ? "Registration verification" : "Login verification";
+
   await sendGraphMail({
     to: email,
     subject: "BinaryGuard Portal OTP Code",
     html: `
-      <div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#0f172a">
-        <h2>BinaryGuard Secure Client Portal</h2>
-        <p>Your one-time password is:</p>
-        <div style="font-size:32px;font-weight:800;letter-spacing:6px;background:#f1f5f9;padding:18px 22px;border-radius:10px;text-align:center">
+      <div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;color:#0f172a;line-height:1.5">
+        <h2 style="margin:0 0 12px;font-size:28px">BinaryGuard Secure Client Portal</h2>
+
+        <p>Hello,</p>
+        <p>We received a request for <strong>${escapeHtml(purposeLabel)}</strong>.</p>
+
+        <p style="margin-top:24px">Your one-time password is:</p>
+
+        <div style="font-size:36px;font-weight:800;letter-spacing:8px;background:#f1f5f9;padding:18px 22px;border-radius:10px;text-align:center">
           ${escapeHtml(code)}
         </div>
+
         <p>This code expires in <strong>${otpExpiryMinutes} minutes</strong>.</p>
-        <p style="color:#64748b;font-size:13px">Purpose: ${escapeHtml(purposeLabel)}</p>
+
+        <div style="margin:28px 0">
+          <a href="${portalUrl.toString()}"
+             style="display:inline-block;background:#0f918c;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:8px;font-weight:700">
+            Continue to OTP Verification
+          </a>
+        </div>
+
+        <p>If the button does not work, copy and paste this link into your browser:</p>
+        <p style="word-break:break-all;color:#0f766e">${portalUrl.toString()}</p>
+
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0" />
+
+        <p style="font-size:13px;color:#64748b">
+          If you did not request this code, you can safely ignore this email.
+        </p>
+
+        <p style="font-size:13px;color:#64748b">
+          BinaryGuard Support Team<br />
+          support@binaryguard.ca
+        </p>
       </div>
     `,
   });
 }
-
 
 app.get("/api/debug-cors", (req: Request, res: Response) => {
   res.json({
