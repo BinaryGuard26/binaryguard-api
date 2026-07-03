@@ -46,7 +46,7 @@ type OtpRow = {
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
-const otpExpiryMinutes = Number(process.env.OTP_EXPIRY_MINUTES || 5);
+const otpExpiryMinutes = Number(process.env.OTP_EXPIRY_MINUTES || 10);
 
 
 const configuredOrigins = String(
