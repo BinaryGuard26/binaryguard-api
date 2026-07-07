@@ -235,12 +235,13 @@ async function findTenantByEmail(email: string): Promise<{ tenantId: string } | 
 }
 
 async function sendOtpEmail(email: string, code: string, purpose: OtpPurpose) {
-  const portalBaseUrl =
+  const portalBaseUrl = (
     process.env.PORTAL_URL ||
     process.env.FRONTEND_ORIGIN?.split(",")[0] ||
-    "https://portal.binaryguard.ca";
+    "https://portal.binaryguard.ca"
+  ).replace(/\/$/, "");
 
-  const portalUrl = new URL(portalBaseUrl);
+  const portalUrl = new URL("/", portalBaseUrl);
   portalUrl.searchParams.set("otp_email", email);
   portalUrl.searchParams.set("purpose", purpose);
 
